@@ -7,44 +7,21 @@
 
 **TARA-FL** is a modular, research-grade framework for Byzantine-robust Federated Learning. It unifies **Dynamic Continuous Trust Scoring**, **Multi-Zone Quarantine/Eligibility Management**, **Multi-Signal Round-Risk Assessment**, and **Trust-Weighted Adaptive Aggregation** into an end-to-end defensible federated training loop.
 
-## Live Demo & Real Experiment Dashboard
+## Live Demo
 
-The interactive dashboard in `demo/` (a single self-contained HTML file) has two
-data sources, kept strictly separate:
+An interactive, browser-based demo of the full TARA-FL pipeline is included in
+this repository under `demo/` (a single self-contained HTML file) and is hosted
+live on GitHub Pages:
 
-- **Real Results tab** — *actual* metrics produced by the Python pipeline
-  (`experiments/run_unified.py`): real accuracy/loss from `server.evaluate()`,
-  real trust scores from `TrustEngine`, real quarantine transitions from the
-  `QuarantineManager`, real round-risk and real aggregation decisions.
-  Two operating modes:
-  - **Mode A — Live local backend** (`python visualization/live_server.py`):
-    the browser connects over Server-Sent Events and every completed
-    communication round appears automatically, without refresh, while training
-    runs. If the backend is stopped, completed rounds remain visible and the
-    dashboard says so; if no backend is running, no metrics are shown (never
-    simulated ones).
-  - **Mode B — Published results** (GitHub Pages): the latest *actual* run is
-    exported to `demo/results/` and displayed as a static snapshot, clearly
-    labeled with its experiment ID and timestamp. GitHub Pages is static
-    hosting — it cannot run the Python backend or connect to your machine;
-    the page states this instead of pretending to be live.
-- **Simulation tab** — the original illustrative synthetic demo (calibrated
-  response model). It is now explicitly labeled as an illustration; it is never
-  mixed with real results.
+**[Launch the TARA-FL Live Demo](https://farooqpersonal12.github.io/TARA-FL/demo/)**
 
-**[Launch the TARA-FL Dashboard](https://farooqpersonal12.github.io/TARA-FL/demo/)**
+The demo runs the same trust pipeline implemented in `trustengine/`, `risk/` and `aggregation/` and lets you:
 
-Quick start (Windows CMD) — see section 6.5 for the full workflow:
-
-```bat
-cd C:\path\to\TARA-FL
-pip install -r requirements.txt
-python visualization\live_server.py          REM terminal 1: dashboard + SSE backend
-python experiments\run_unified.py --method all --num_clients 10 --malicious_ratio 0.3 --attack gradient_scale --rounds 5 --seeds 42   REM terminal 2: real training
-```
-
-Open `http://127.0.0.1:8000`, switch to the **Real Results** tab, and watch the
-real experiment stream in round by round.
+- Configure federated training: 10 clients, 20/30/50 rounds, random seed
+- Pick a threat model: no attack, label flipping, gradient scaling, or sign flipping with 0-50% malicious clients
+- Switch between IID and non-IID (Dirichlet) data distributions
+- Watch per-client trust scores, Safe / Probation / Quarantine zone transitions, round-risk level (LOW / MEDIUM / HIGH) and the adaptive aggregation decisions logged round by round
+- Compare trust-weighted aggregation against plain FedAvg under the same attack and observe detection and quarantine of malicious clients
 
 ---
 
@@ -251,119 +228,29 @@ python visualization/dashboard.py --port 8080 --data experiments/matrix_raw
 ```
 Navigate to `http://127.0.0.1:8080` in your web browser.
 
-### Real Experiment Dashboard (Python results in the browser)
+### Interactive Browser Demo (no setup)
 
 `demo/index.html` is a single self-contained file (styles, scripts and fonts
-inlined) with **two data sources**:
+inlined) implementing the full TARA-FL defense loop - five-stage trust scoring,
+zone classification with quarantine & recovery, round-risk assessment and the
+adaptive aggregation router - on 10 clients with all 4 aggregation methods
+(FedAvg, Trust+FedAvg, Trust+Robust, TARA-FL) computed side by side on the same
+client updates each round:
 
-- **Real Results tab** — renders *only* metrics exported by the actual Python
-  pipeline. Nothing in this tab is simulated, estimated or extrapolated.
-- **Simulation tab** — the original illustrative demo with a calibrated
-  response model, now clearly labeled *synthetic illustration*. It is never
-  mixed with real results.
+**Live demo:** https://farooqpersonal12.github.io/TARA-FL/demo/
 
-The Python side is bridged by three small modules:
-
-| Module | Role |
-| --- | --- |
-| `experiments/results_export.py` | Non-invasive exporter: after **every completed round** it atomically publishes `dashboard_data/live.json`, `dashboard_data/history/<experiment_id>.json` and `dashboard_data/index.json`. It captures the accuracy/loss already measured by `server.evaluate()`, the full per-client `TrustEngine.calculate_trust()` record (trust, PID score, relative anomaly, zone, quarantine flag), `RoundRisk` breakdowns, detector distances/PID scores, quarantine/zone transitions (diffed between rounds) and the adaptive aggregation decision. |
-| `visualization/live_server.py` | FastAPI (+ uvicorn) backend serving the dashboard at `/` with REST endpoints (`/api/status`, `/api/live`, `/api/experiments`, `/api/experiments/<id>`) and an SSE stream at `/api/stream` that pushes a new `update` event within ~1 second of every completed round. Falls back to the Python standard library if FastAPI is unavailable. The backend never generates metrics. |
-| `visualization/publish_results.py` | Copies the latest real run into `demo/results/` (`latest.json`, `history/`, `index.json`) so static hosting (GitHub Pages) can serve it. |
-
-#### Mode A — live local execution (real-time, round-by-round)
-
-Terminal 1 (backend):
-```bash
-python visualization/live_server.py --port 8000
-```
-Terminal 2 (real training):
-```bash
-python experiments/run_unified.py --method all --num_clients 10 --malicious_ratio 0.3 --attack gradient_scale --rounds 5 --seeds 42
-```
-Open `http://127.0.0.1:8000` → **Real Results** tab. The page connects via
-`EventSource` and updates automatically after every completed round: accuracy
-and loss curves grow round by round, trust trajectories, zone chips, risk
-levels, quarantine transitions and aggregation decisions all reflect the real
-engine state. No manual refresh is needed. Requirements 1-3, 7-10 of a fully
-dynamic pipeline are covered:
-
-- the dashboard detects a running experiment as soon as it starts (the
-  exporter publishes an initial `running` snapshot);
-- every metric is traceable to its experiment ID, method, seed and round
-  (shown in the Provenance panel);
-- when training completes, the real final metrics are shown with timestamp;
-- if the process dies, all completed rounds are already on disk and remain
-  viewable (status `stopped`/`failed` in the banner);
-- if the backend is unreachable, the tab shows an explicit offline banner with
-  the exact start command - it never substitutes synthetic data.
-
-Works on any OS; on Windows run `python visualization\live_server.py`.
-
-#### Mode B — published results on GitHub Pages (static)
-
-GitHub Pages cannot execute Python or reach your locally running backend, so
-the public dashboard shows the latest *published actual* experiment:
-
-```bash
-python visualization/publish_results.py    # dashboard_data -> demo/results/
-git add demo/results
-git commit -m "Publish latest real TARA-FL experiment results"
-git push
-```
-
-The Real Results tab in "Published Results" mode loads `results/latest.json`
-relative to the page, lists all published experiments from
-`results/index.json`, and labels the view *"static snapshot - not a live
-stream"* with the generation timestamp and experiment ID. In Live mode on
-GitHub Pages, the page explains the limitation instead of attempting an
-impossible connection.
-
-#### Real experiment data format (JSON schema v1.1)
-
-Each export document contains: `experiment_id`, `status`
-(`running|completed|stopped|failed`), timestamps, full reproducible `config`
-(dataset, clients, rounds, local epochs, attack, flip/scale factors,
-malicious ratio **and the exact malicious client IDs**, split, Dirichlet
-alpha, detector type, seeds), `environment` (Python/PyTorch versions),
-`source` (script + argv + cwd), and per method → per seed → per round:
-accuracy, loss, risk score/level + component breakdown, threat type,
-selected aggregator, suspicious-client count, malicious weight share, round
-wall time, per-client trust/PID/anomaly/zone/quarantine/eligibility,
-`quarantine_transitions`, and detector `distances`/`pid_scores`. Methods that
-do not compute a signal (e.g. FedAvg computes no trust scores) store `null`
-explicitly instead of a fabricated value.
-
-#### Reproducing the published experiment
-
-The committed `demo/results/latest.json` was produced by:
-
-```bash
-python experiments/run_unified.py --method all --num_clients 10 --malicious_ratio 0.3 --attack gradient_scale --scale_factor 10.0 --data_split iid --rounds 5 --seeds 42
-```
-
-Its headline outcome (real measured values): plain **FedAvg collapses to
-25.36%** final accuracy while **TARA-FL maintains 89.57%**, all 3 malicious
-clients are quarantined by the `QuarantineManager` during training, and the
-adaptive router leaves plain FedAvg after round 1. The exact JSON - every
-round, every client - is in `demo/results/`.
-
-### Interactive Browser Demo (synthetic illustration, no setup)
-
-The **Simulation** tab of `demo/index.html` implements the full TARA-FL
-defense loop on synthetic 8-D client updates with all 4 aggregation rules
-computed side by side - useful to explain the mechanism interactively. It runs
-entirely offline (`demo/` makes zero network requests):
+It makes zero network requests, so it runs entirely offline. Just double-click
+`demo/index.html` - no installation, no server:
 
 ```bash
 cd demo
 python -m http.server 8000    # optional; opening demo/index.html directly also works
 ```
 
-The simulation is seeded, so the same configuration always reproduces the same
-run. Suggested headline configuration: `Gradient Scaling x10`, `30% malicious`,
-`IID`, `40 rounds` - matching the reported result in section 9 (22.65% vs
-90.00%). Remember: this tab is a calibrated illustration; the **Real Results**
-tab is the source for experimental claims.
+The simulation is seeded, so the same configuration always reproduces the same run.
+Suggested headline configuration: `Gradient Scaling x10`, `30% malicious`, `IID`,
+`40 rounds` - plain FedAvg collapses while TARA-FL maintains ~90% accuracy,
+matching the reported result in section 9 (22.65% vs 90.00%).
 
 ---
 
@@ -398,9 +285,8 @@ TARA-FL/
 │   └── client.py               # Local SGD trainer & differential update extractor
 ├── data/                       # Dataset loading & partitioning
 │   └── dataset.py              # MNIST loader, IID & Non-IID Dirichlet splits
-├── demo/                       # Interactive browser dashboard & demo
-│   ├── index.html              # Single-file app: Real Results (live + published) & Simulation tabs
-│   ├── results/                # Published real experiment results (GitHub Pages, Mode B)
+├── demo/                       # Interactive browser demo of the trust engine
+│   ├── index.html              # Single-file demo app: UI, engine, charts & fonts inlined
 │   └── README.md               # How to run & what to try
 ├── detection/                  # Anomaly & outlier detectors
 │   ├── anomaly_detector.py     # Base detector interface
