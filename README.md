@@ -3,8 +3,25 @@
 [![Python Version](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue)](https://www.python.org/)
 [![Test Suite](https://img.shields.io/badge/tests-92%20passed-brightgreen)](tests/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Online-brightgreen)](https://farooqpersonal12.github.io/TARA-FL/demo/)
 
 **TARA-FL** is a modular, research-grade framework for Byzantine-robust Federated Learning. It unifies **Dynamic Continuous Trust Scoring**, **Multi-Zone Quarantine/Eligibility Management**, **Multi-Signal Round-Risk Assessment**, and **Trust-Weighted Adaptive Aggregation** into an end-to-end defensible federated training loop.
+
+## Live Demo
+
+An interactive, browser-based demo of the full TARA-FL pipeline is included in
+this repository under `demo/` (a single self-contained HTML file) and is hosted
+live on GitHub Pages:
+
+**[Launch the TARA-FL Live Demo](https://farooqpersonal12.github.io/TARA-FL/demo/)**
+
+The demo runs the same trust pipeline implemented in `trustengine/`, `risk/` and `aggregation/` and lets you:
+
+- Configure federated training: 10 clients, 20/30/50 rounds, random seed
+- Pick a threat model: no attack, label flipping, gradient scaling, or sign flipping with 0-50% malicious clients
+- Switch between IID and non-IID (Dirichlet) data distributions
+- Watch per-client trust scores, Safe / Probation / Quarantine zone transitions, round-risk level (LOW / MEDIUM / HIGH) and the adaptive aggregation decisions logged round by round
+- Compare trust-weighted aggregation against plain FedAvg under the same attack and observe detection and quarantine of malicious clients
 
 ---
 
@@ -130,7 +147,7 @@ Aggregation automatically adapts to the round risk level:
 
 ## 3. Implemented Attacks
 
-The repository contains modular, extensible attack implementations in [`attacks/`](file:///c:/Users/uf913/OneDrive/Documents/Desktop/Federated%20Learning/Code/TARA-FL/attacks):
+The repository contains modular, extensible attack implementations in [`attacks/`](attacks/):
 1. **Clean Baseline (`none`)**: Standard benign federated training.
 2. **Label Flipping (`label_flip`)**: Data poisoning where Byzantine clients train on flipped label mappings (e.g. $75\%$ noise, class $y \to (9 - y)$).
 3. **Gradient Scaling (`gradient_scale`)**: Model poisoning where Byzantine clients scale parameter updates by a factor $\gamma$ (e.g. $\times 10.0$).
@@ -211,6 +228,30 @@ python visualization/dashboard.py --port 8080 --data experiments/matrix_raw
 ```
 Navigate to `http://127.0.0.1:8080` in your web browser.
 
+### Interactive Browser Demo (no setup)
+
+`demo/index.html` is a single self-contained file (styles, scripts and fonts
+inlined) implementing the full TARA-FL defense loop - five-stage trust scoring,
+zone classification with quarantine & recovery, round-risk assessment and the
+adaptive aggregation router - on 10 clients with all 4 aggregation methods
+(FedAvg, Trust+FedAvg, Trust+Robust, TARA-FL) computed side by side on the same
+client updates each round:
+
+**Live demo:** https://farooqpersonal12.github.io/TARA-FL/demo/
+
+It makes zero network requests, so it runs entirely offline. Just double-click
+`demo/index.html` - no installation, no server:
+
+```bash
+cd demo
+python -m http.server 8000    # optional; opening demo/index.html directly also works
+```
+
+The simulation is seeded, so the same configuration always reproduces the same run.
+Suggested headline configuration: `Gradient Scaling x10`, `30% malicious`, `IID`,
+`40 rounds` - plain FedAvg collapses while TARA-FL maintains ~90% accuracy,
+matching the reported result in section 9 (22.65% vs 90.00%).
+
 ---
 
 ## 7. Running Tests
@@ -237,6 +278,9 @@ TARA-FL/
 │   └── client.py               # Local SGD trainer & differential update extractor
 ├── data/                       # Dataset loading & partitioning
 │   └── dataset.py              # MNIST loader, IID & Non-IID Dirichlet splits
+├── demo/                       # Interactive browser demo of the trust engine
+│   ├── index.html              # Single-file demo app: UI, engine, charts & fonts inlined
+│   └── README.md               # How to run & what to try
 ├── detection/                  # Anomaly & outlier detectors
 │   ├── anomaly_detector.py     # Base detector interface
 │   ├── multimetric_detector.py # Multi-metric distance & angle detector
